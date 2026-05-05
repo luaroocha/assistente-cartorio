@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+# requirements.txt — Assistente Virtual de Cartório
+# Disciplina: Inteligência Artificial — IFBA
+# ─────────────────────────────────────────────────────────────
+
+# Reconhecimento e geração de fala (Whisper + MMS-TTS via Hugging Face)
+transformers
+
+# Processamento de áudio (PyTorch)
+torch
+torchaudio==2.10.0
+torchcodec==0.10
+
+# Leitura e escrita de arquivos de áudio
+PySoundFile
+
+# Captura de áudio pelo microfone
+sounddevice
+
+# Interface web
+flask
+
+# Processamento de linguagem natural
+nltk
