@@ -11,7 +11,7 @@ Funcionamento:
 Uso:
   python assistente_cartorio.py
   python assistente_cartorio.py --modo texto     (para testes sem microfone)
-  python assistente_cartorio.py --modo web       (interface web via Flask)
+  python assistente_cartorio.py --modo arquivo --audio caminho.wav
 """
 
 import json
@@ -24,18 +24,6 @@ from atuadores import executar_acao
 from sensor_voz import capturar_microfone, transcrever_arquivo
 
 
-BANNER = r"""
- ██████╗ █████╗ ██████╗ ████████╗ ██████╗ ██████╗ ██╗ ██████╗
-██╔════╝██╔══██╗██╔══██╗╚══██╔══╝██╔═══██╗██╔══██╗██║██╔═══██╗
-██║     ███████║██████╔╝   ██║   ██║   ██║██████╔╝██║██║   ██║
-██║     ██╔══██║██╔══██╗   ██║   ██║   ██║██╔══██╗██║██║   ██║
-╚██████╗██║  ██║██║  ██║   ██║   ╚██████╔╝██║  ██║██║╚██████╔╝
- ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝
-
-        Assistente Virtual de Cartório  v1.0
-        Disciplina: Inteligência Artificial — IFBA
-"""
-
 
 def carregar_configuracao(caminho: str = "comandos.json") -> dict:
     """Carrega o arquivo de configuração JSON."""
@@ -44,7 +32,7 @@ def carregar_configuracao(caminho: str = "comandos.json") -> dict:
         sys.exit(1)
     with open(caminho, "r", encoding="utf-8") as f:
         config = json.load(f)
-    print(f"[CONFIG] Configuração carregada: {caminho}")
+    print(f"[INFO] Configuração carregada: {caminho}")
     return config
 
 
@@ -102,12 +90,11 @@ def modo_texto(config: dict, processador: ProcessadorNLP) -> None:
     msgs = config.get("mensagens_sistema", {})
 
     print("\n" + msgs.get("boas_vindas", "Bem-vindo!"))
-    print("\n[MODO TEXTO] Digite o comando em texto. Ctrl+C para sair.\n")
+    print("\n[MODO TEXTO] Digite o comando. Ctrl+C ou 'sair' para encerrar.\n")
     print("Exemplos de comandos:")
-    print("  registrar documento")
-    print("  consultar protocolo")
-    print("  agendar atendimento")
-    print("  emitir certidão\n")
+    for cmd in config.get("comandos", []):
+        print(f"  - {cmd['palavras_chave'][0]}")
+    print()
 
     while True:
         try:
@@ -121,118 +108,22 @@ def modo_texto(config: dict, processador: ProcessadorNLP) -> None:
             break
 
 
-def modo_arquivo(caminho_audio: str, config: dict,
-                 processador: ProcessadorNLP) -> None:
+def modo_arquivo(caminho_audio: str, config: dict, processador: ProcessadorNLP) -> None:
     """Processa um único arquivo de áudio WAV."""
     print(f"\n[ARQUIVO] Transcrevendo: {caminho_audio}")
     texto = transcrever_arquivo(caminho_audio)
     processar_comando(texto or "", processador, config)
 
 
-def modo_web(config: dict, processador: ProcessadorNLP,
-             porta: int = 5000) -> None:
-    """Interface web do assistente via Flask."""
-    from flask import Flask, request, jsonify, render_template_string
-
-    app = Flask(__name__)
-
-    HTML = """<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Assistente Virtual de Cartório</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto;
-           padding: 0 20px; background: #f5f5f5; }
-    h1   { color: #2c3e50; font-size: 1.4rem; }
-    textarea { width: 100%; padding: 10px; font-size: 1rem;
-               border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
-    button { margin-top: 10px; padding: 10px 24px; background: #2980b9;
-             color: #fff; border: none; border-radius: 4px;
-             font-size: 1rem; cursor: pointer; }
-    button:hover { background: #1f6fa6; }
-    #resposta { margin-top: 20px; padding: 14px; background: #fff;
-                border-left: 4px solid #2980b9; white-space: pre-wrap;
-                min-height: 40px; border-radius: 2px; }
-    .rotulo { font-weight: bold; color: #555; font-size: 0.85rem;
-              text-transform: uppercase; margin-bottom: 4px; }
-  </style>
-</head>
-<body>
-  <h1>Assistente Virtual de Cartório</h1>
-  <p>Digite um comando cartorial para processar:</p>
-  <p><em>Exemplos: registrar documento · consultar protocolo ·
-     agendar atendimento · emitir certidão</em></p>
-  <textarea id="entrada" rows="3" placeholder="Ex: registrar documento"></textarea>
-  <br>
-  <button onclick="enviar()">Enviar Comando</button>
-  <div class="rotulo" style="margin-top:20px">Resposta</div>
-  <div id="resposta">—</div>
-
-  <script>
-    async function enviar() {
-      const texto = document.getElementById('entrada').value.trim();
-      if (!texto) return;
-      document.getElementById('resposta').textContent = 'Processando...';
-      const res = await fetch('/api/comando', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({texto})
-      });
-      const dados = await res.json();
-      document.getElementById('resposta').textContent =
-        dados.resposta || dados.erro || '—';
-    }
-    document.getElementById('entrada').addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); }
-    });
-  </script>
-</body>
-</html>"""
-
-    @app.route("/")
-    def index():
-        return render_template_string(HTML)
-
-    @app.route("/api/comando", methods=["POST"])
-    def api_comando():
-        dados = request.get_json(silent=True) or {}
-        texto = str(dados.get("texto", "")).strip()
-        if not texto:
-            return jsonify({"erro": "Campo 'texto' ausente ou vazio."}), 400
-
-        msgs = config.get("mensagens_sistema", {})
-        comando = processador.identificar_comando(texto)
-        if comando is None:
-            return jsonify({
-                "resposta": msgs.get(
-                    "comando_nao_reconhecido",
-                    "[CARTÓRIO] Comando não reconhecido."
-                )
-            })
-
-        acao = comando.get("acao", "")
-        template = comando.get("resposta_sucesso", "[CARTÓRIO] Ação executada.")
-        resposta = executar_acao(acao, template)
-        return jsonify({"resposta": resposta})
-
-    print(f"\n[WEB] Servidor Flask iniciado em http://localhost:{porta}/")
-    print("[WEB] Pressione Ctrl+C para encerrar.\n")
-    app.run(host="0.0.0.0", port=porta, debug=False)
-
-
 def main():
-    print(BANNER)
-
     parser = argparse.ArgumentParser(
         description="Assistente Virtual de Cartório — IFBA IA"
     )
     parser.add_argument(
         "--modo",
-        choices=["microfone", "texto", "arquivo", "web"],
+        choices=["microfone", "texto", "arquivo"],
         default="microfone",
-        help="Modo de entrada: microfone (padrão), texto, arquivo WAV ou web"
+        help="Modo de entrada: microfone (padrão), texto ou arquivo WAV"
     )
     parser.add_argument(
         "--audio",
@@ -246,12 +137,6 @@ def main():
         default="comandos.json",
         help="Caminho do arquivo de configuração JSON (padrão: comandos.json)"
     )
-    parser.add_argument(
-        "--porta",
-        type=int,
-        default=5000,
-        help="Porta do servidor Flask (padrão: 5000, usado com --modo web)"
-    )
     args = parser.parse_args()
 
     config = carregar_configuracao(args.config)
@@ -264,8 +149,6 @@ def main():
             print("[ERRO] Informe o caminho do áudio com --audio caminho.wav")
             sys.exit(1)
         modo_arquivo(args.audio, config, processador)
-    elif args.modo == "web":
-        modo_web(config, processador, porta=args.porta)
     else:
         modo_microfone(config, processador)
 

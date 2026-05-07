@@ -4,7 +4,6 @@ Módulo de atuadores do Assistente Virtual de Cartório.
 Cada função simula uma atuação real do sistema cartorial.
 """
 
-import json
 import random
 import string
 from datetime import datetime, timedelta
@@ -41,30 +40,14 @@ def _proximo_horario_disponivel():
 
 
 def executar_registrar_documento(template_resposta: str) -> str:
-    """
-    Atuador: Registra um documento no sistema do cartório.
-    Simula a gravação em banco de dados e geração de protocolo.
-    """
+    """Atuador: Registra um documento no sistema do cartório."""
     protocolo = _gerar_protocolo()
-    timestamp = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
-
-    print(f"\n{'='*55}")
-    print("  ATUADOR ATIVO: REGISTRO DE DOCUMENTO")
-    print(f"{'='*55}")
-    print(f"  Tipo de ação  : Inserção no sistema cartorial")
-    print(f"  Protocolo     : {protocolo}")
-    print(f"  Timestamp     : {timestamp}")
-    print(f"  Status        : CONCLUÍDO COM SUCESSO")
-    print(f"{'='*55}\n")
-
+    print(f"[ATUADOR] Registro de documento | Protocolo: {protocolo}")
     return template_resposta.format(protocolo=protocolo)
 
 
 def executar_consultar_protocolo(template_resposta: str) -> str:
-    """
-    Atuador: Consulta o status de um protocolo.
-    Simula uma consulta ao banco de dados do cartório.
-    """
+    """Atuador: Consulta o status de um protocolo."""
     protocolo = _gerar_protocolo()
     status_opcoes = [
         "Em análise documental",
@@ -73,67 +56,22 @@ def executar_consultar_protocolo(template_resposta: str) -> str:
         "Registrado e arquivado"
     ]
     status = random.choice(status_opcoes)
-    timestamp = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
-
-    print(f"\n{'='*55}")
-    print("  ATUADOR ATIVO: CONSULTA DE PROTOCOLO")
-    print(f"{'='*55}")
-    print(f"  Tipo de ação  : Consulta no sistema cartorial")
-    print(f"  Protocolo     : {protocolo}")
-    print(f"  Status atual  : {status}")
-    print(f"  Consultado em : {timestamp}")
-    print(f"  Status        : CONSULTA REALIZADA")
-    print(f"{'='*55}\n")
-
+    print(f"[ATUADOR] Consulta de protocolo | Protocolo: {protocolo} | Status: {status}")
     return template_resposta.format(protocolo=protocolo, status=status)
 
 
 def executar_agendar_atendimento(template_resposta: str) -> str:
-    """
-    Atuador: Agenda um atendimento presencial.
-    Simula a reserva de horário no sistema de agendamentos.
-    """
+    """Atuador: Agenda um atendimento presencial."""
     data, horario = _proximo_horario_disponivel()
     protocolo = _gerar_protocolo()
-    timestamp = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
-
-    print(f"\n{'='*55}")
-    print("  ATUADOR ATIVO: AGENDAMENTO DE ATENDIMENTO")
-    print(f"{'='*55}")
-    print(f"  Tipo de ação  : Reserva no sistema de agendamentos")
-    print(f"  Data          : {data}")
-    print(f"  Horário       : {horario}")
-    print(f"  Protocolo     : {protocolo}")
-    print(f"  Agendado em   : {timestamp}")
-    print(f"  Status        : AGENDAMENTO CONFIRMADO")
-    print(f"{'='*55}\n")
-
-    return template_resposta.format(
-        protocolo=protocolo,
-        data=data,
-        horario=horario
-    )
+    print(f"[ATUADOR] Agendamento | Data: {data} às {horario} | Protocolo: {protocolo}")
+    return template_resposta.format(protocolo=protocolo, data=data, horario=horario)
 
 
 def executar_emitir_certidao(template_resposta: str) -> str:
-    """
-    Atuador: Emite uma certidão de registro.
-    Simula a geração e impressão de certidão oficial.
-    """
+    """Atuador: Emite uma certidão de registro."""
     certidao = _gerar_numero_certidao()
-    timestamp = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
-    validade = (datetime.now() + timedelta(days=90)).strftime("%d/%m/%Y")
-
-    print(f"\n{'='*55}")
-    print("  ATUADOR ATIVO: EMISSÃO DE CERTIDÃO")
-    print(f"{'='*55}")
-    print(f"  Tipo de ação  : Geração de certidão oficial")
-    print(f"  Nº Certidão   : {certidao}")
-    print(f"  Emitida em    : {timestamp}")
-    print(f"  Válida até    : {validade}")
-    print(f"  Status        : CERTIDÃO EMITIDA")
-    print(f"{'='*55}\n")
-
+    print(f"[ATUADOR] Emissão de certidão | Nº: {certidao}")
     return template_resposta.format(certidao=certidao)
 
 
