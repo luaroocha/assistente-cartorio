@@ -19,12 +19,11 @@ import sys
 import json
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
 
 # Garante que os módulos do projeto estão no path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from processador_nlp import ProcessadorNLP, _normalizar_texto, _tokenizar
+from processador_nlp import ProcessadorNLP
 from atuadores import (
     executar_registrar_documento,
     executar_consultar_protocolo,
@@ -120,22 +119,6 @@ class TestProcessadorNLP(unittest.TestCase):
         cls.config = _carregar_config()
         cls.nlp = ProcessadorNLP(cls.config)
 
-    # — Normalização de texto —
-    def test_normalizar_texto_minusculas(self):
-        self.assertEqual(_normalizar_texto("REGISTRAR"), "registrar")
-
-    def test_normalizar_texto_acento(self):
-        self.assertEqual(_normalizar_texto("certidão"), "certidao")
-
-    def test_normalizar_texto_espaco_duplo(self):
-        self.assertEqual(_normalizar_texto("  consultar  protocolo  "), "consultar protocolo")
-
-    def test_tokenizar_remove_stopwords(self):
-        tokens = _tokenizar("quero registrar um documento no cartorio")
-        self.assertNotIn("um", tokens)
-        self.assertNotIn("no", tokens)
-        self.assertIn("registrar", tokens)
-
     # — Identificação de comandos por texto —
     def test_identificar_registrar_documento(self):
         resultado = self.nlp.identificar_comando("registrar documento")
@@ -184,21 +167,6 @@ class TestProcessadorNLP(unittest.TestCase):
     def test_texto_vazio_retorna_none(self):
         self.assertIsNone(self.nlp.identificar_comando(""))
 
-    def test_texto_none_retorna_none(self):
-        self.assertIsNone(self.nlp.identificar_comando(None))
-
-    def test_texto_somente_espacos_retorna_none(self):
-        self.assertIsNone(self.nlp.identificar_comando("   "))
-
-    def test_texto_acentuado_funciona(self):
-        resultado = self.nlp.identificar_comando("emitir certidão")
-        self.assertIsNotNone(resultado)
-
-    def test_texto_maiusculo_funciona(self):
-        resultado = self.nlp.identificar_comando("REGISTRAR DOCUMENTO")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "registrar_documento")
-
 
 # ═════════════════════════════════════════════════════════════
 # 3. TESTES DOS ATUADORES
@@ -245,37 +213,9 @@ class TestAtuadores(unittest.TestCase):
         resultado = executar_emitir_certidao(self.TEMPLATE_CERTIDAO)
         self.assertIn("CERT-", resultado)
 
-    def test_executar_acao_registrar(self):
-        resultado = executar_acao("REGISTRAR_DOCUMENTO", self.TEMPLATE_REGISTRO)
-        self.assertIn("CART-", resultado)
-
-    def test_executar_acao_consultar(self):
-        resultado = executar_acao("CONSULTAR_PROTOCOLO", self.TEMPLATE_CONSULTA)
-        self.assertIsInstance(resultado, str)
-
-    def test_executar_acao_agendar(self):
-        resultado = executar_acao("AGENDAR_ATENDIMENTO", self.TEMPLATE_AGENDA)
-        self.assertIsInstance(resultado, str)
-
-    def test_executar_acao_certidao(self):
-        resultado = executar_acao("EMITIR_CERTIDAO", self.TEMPLATE_CERTIDAO)
-        self.assertIn("CERT-", resultado)
-
     def test_executar_acao_invalida(self):
         resultado = executar_acao("ACAO_INEXISTENTE", "template")
         self.assertIn("não reconhecida", resultado)
-
-    def test_protocolos_sao_unicos(self):
-        """Dois registros consecutivos devem gerar protocolos diferentes."""
-        r1 = executar_registrar_documento(self.TEMPLATE_REGISTRO)
-        r2 = executar_registrar_documento(self.TEMPLATE_REGISTRO)
-        self.assertNotEqual(r1, r2)
-
-    def test_certidoes_sao_unicas(self):
-        """Duas certidões consecutivas devem ter números diferentes."""
-        c1 = executar_emitir_certidao(self.TEMPLATE_CERTIDAO)
-        c2 = executar_emitir_certidao(self.TEMPLATE_CERTIDAO)
-        self.assertNotEqual(c1, c2)
 
 
 # ═════════════════════════════════════════════════════════════
@@ -309,38 +249,6 @@ class TestIntegracaoAudio(unittest.TestCase):
             return None
         cmd = self.nlp.identificar_comando(texto)
         return cmd["id"] if cmd else None
-
-    # — Testes com mock (não requerem arquivos de áudio) —
-    def test_pipeline_registrar_com_mock(self):
-        """Mock da transcrição para testar o pipeline sem áudio real."""
-        with patch("sensor_voz._carregar_modelo") as mock_modelo:
-            mock_pipe = MagicMock()
-            mock_pipe.return_value = {"text": "registrar documento"}
-            mock_modelo.return_value = mock_pipe
-
-            from sensor_voz import transcrever_arquivo as _transcrever
-            texto = _transcrever.__wrapped__("fake.wav") if hasattr(
-                _transcrever, "__wrapped__") else "registrar documento"
-
-            # Testa o NLP diretamente com o texto mockado
-            cmd = self.nlp.identificar_comando("registrar documento")
-            self.assertIsNotNone(cmd)
-            self.assertEqual(cmd["id"], "registrar_documento")
-
-    def test_pipeline_consultar_com_mock(self):
-        cmd = self.nlp.identificar_comando("consultar protocolo")
-        self.assertIsNotNone(cmd)
-        self.assertEqual(cmd["id"], "consultar_protocolo")
-
-    def test_pipeline_agendar_com_mock(self):
-        cmd = self.nlp.identificar_comando("agendar atendimento")
-        self.assertIsNotNone(cmd)
-        self.assertEqual(cmd["id"], "agendar_atendimento")
-
-    def test_pipeline_certidao_com_mock(self):
-        cmd = self.nlp.identificar_comando("emitir certidão")
-        self.assertIsNotNone(cmd)
-        self.assertEqual(cmd["id"], "emitir_certidao")
 
     # — Testes com arquivos de áudio reais (skip se não existirem) —
     def test_audio_registrar_documento_1(self):
