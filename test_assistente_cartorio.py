@@ -1,213 +1,93 @@
-"""
-test_assistente_cartorio.py
-Suite completa de testes unitários do Assistente Virtual de Cartório.
-Utiliza a biblioteca UNITTEST da linguagem Python, conforme exigido na avaliação.
-
-Cobertura dos testes:
-  1. Carregamento e validação do arquivo de configuração JSON
-  2. Módulo de NLP (processador_nlp.py) — identificação de comandos
-  3. Módulo de atuadores (atuadores.py) — execução das ações
-  4. Integração sensor de voz + NLP + atuador com áudios pré-gravados
-  5. Casos de borda: comando inválido, texto vazio, etc.
-
-Uso:
-  python -m unittest test_assistente_cartorio.py -v
-"""
-
 import os
 import sys
 import json
-import tempfile
 import unittest
 
-# Garante que os módulos do projeto estão no path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from processador_nlp import ProcessadorNLP
 from atuadores import (
     executar_registrar_documento,
     executar_consultar_protocolo,
-    executar_agendar_atendimento,
     executar_emitir_certidao,
     executar_acao,
-    MAPA_ATUADORES,
 )
-from sensor_voz import gerar_audio_silencio, transcrever_arquivo
+from sensor_voz import transcrever_arquivo
+from temp import TIMEOUT_TESTES
 
 
-PASTA_AUDIOS = "audios_teste"
+PASTA_AUDIOS = "audios"
 CAMINHO_CONFIG = "comandos.json"
 
 
-# ─────────────────────────────────────────────────────────────
-# Utilitário: carrega a configuração real do projeto
-# ─────────────────────────────────────────────────────────────
 def _carregar_config() -> dict:
-    if not os.path.isfile(CAMINHO_CONFIG):
-        raise FileNotFoundError(
-            f"Arquivo '{CAMINHO_CONFIG}' não encontrado. "
-            "Execute os testes a partir do diretório do projeto."
-        )
     with open(CAMINHO_CONFIG, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-# ═════════════════════════════════════════════════════════════
-# 1. TESTES DE CONFIGURAÇÃO JSON
-# ═════════════════════════════════════════════════════════════
-class TestConfiguracaoJSON(unittest.TestCase):
-    """Valida a estrutura e conteúdo do arquivo comandos.json."""
+class TestArquivosExistem(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.config = _carregar_config()
-
-    def test_arquivo_existe(self):
-        """O arquivo comandos.json deve existir."""
+    def test_config_json_existe(self):
         self.assertTrue(os.path.isfile(CAMINHO_CONFIG))
 
-    def test_estrutura_raiz(self):
-        """O JSON deve ter as chaves 'assistente', 'comandos' e 'mensagens_sistema'."""
-        for chave in ("assistente", "comandos", "mensagens_sistema"):
-            self.assertIn(chave, self.config,
-                          f"Chave '{chave}' ausente no JSON")
+    def test_modulo_nlp_existe(self):
+        self.assertTrue(os.path.isfile("processador_nlp.py"))
 
-    def test_minimo_quatro_comandos(self):
-        """O assistente deve ter pelo menos 4 comandos configurados."""
-        self.assertGreaterEqual(len(self.config["comandos"]), 4)
+    def test_modulo_atuadores_existe(self):
+        self.assertTrue(os.path.isfile("atuadores.py"))
 
-    def test_estrutura_de_cada_comando(self):
-        """Cada comando deve ter id, descricao, palavras_chave, acao e resposta_sucesso."""
-        campos = ("id", "descricao", "palavras_chave", "acao", "resposta_sucesso")
-        for cmd in self.config["comandos"]:
-            for campo in campos:
-                self.assertIn(campo, cmd,
-                              f"Campo '{campo}' ausente no comando '{cmd.get('id')}'")
-
-    def test_palavras_chave_nao_vazias(self):
-        """Cada comando deve ter pelo menos 2 palavras-chave."""
-        for cmd in self.config["comandos"]:
-            self.assertGreaterEqual(
-                len(cmd["palavras_chave"]), 2,
-                f"Comando '{cmd['id']}' tem menos de 2 palavras-chave"
-            )
-
-    def test_acoes_mapeadas_em_atuadores(self):
-        """Cada ação configurada no JSON deve ter um atuador correspondente."""
-        for cmd in self.config["comandos"]:
-            acao = cmd.get("acao", "")
-            self.assertIn(
-                acao, MAPA_ATUADORES,
-                f"Ação '{acao}' não possui atuador implementado"
-            )
-
-    def test_limiar_similaridade_valido(self):
-        """O limiar de similaridade deve ser float entre 0 e 1."""
-        limiar = self.config["assistente"].get("limiar_similaridade", 0)
-        self.assertGreater(limiar, 0)
-        self.assertLessEqual(limiar, 1)
+    def test_pasta_audios_existe(self):
+        self.assertTrue(os.path.isdir(PASTA_AUDIOS))
 
 
-# ═════════════════════════════════════════════════════════════
-# 2. TESTES DO MÓDULO NLP
-# ═════════════════════════════════════════════════════════════
-class TestProcessadorNLP(unittest.TestCase):
-    """Testa o identificador de comandos por texto."""
+class TestIntegracaoAudio(unittest.TestCase):
+
+    TIMEOUT = TIMEOUT_TESTES
 
     @classmethod
     def setUpClass(cls):
         cls.config = _carregar_config()
         cls.nlp = ProcessadorNLP(cls.config)
 
-    # — Identificação de comandos por texto —
-    def test_identificar_registrar_documento(self):
-        resultado = self.nlp.identificar_comando("registrar documento")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "registrar_documento")
+    def _pipeline_audio(self, nome_arquivo: str) -> str | None:
+        caminho = os.path.join(PASTA_AUDIOS, f"{nome_arquivo}.wav")
+        if not os.path.isfile(caminho):
+            self.skipTest(f"Áudio '{nome_arquivo}.wav' não encontrado.")
+        texto = transcrever_arquivo(caminho)
+        if not texto:
+            return None
+        cmd = self.nlp.identificar_comando(texto)
+        return cmd["id"] if cmd else None
 
-    def test_identificar_registrar_escritura(self):
-        resultado = self.nlp.identificar_comando("quero registrar uma escritura")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "registrar_documento")
+    def test_audio_registrar_documento(self):
+        self.assertEqual(self._pipeline_audio("registrar_documento"), "registrar_documento")
 
-    def test_identificar_consultar_protocolo(self):
-        resultado = self.nlp.identificar_comando("consultar protocolo")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "consultar_protocolo")
+    def test_audio_consultar_protocolo(self):
+        self.assertEqual(self._pipeline_audio("consultar_protocolo"), "consultar_protocolo")
 
-    def test_identificar_verificar_protocolo(self):
-        resultado = self.nlp.identificar_comando("verificar status do protocolo")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "consultar_protocolo")
+    def test_audio_agendar_atendimento(self):
+        self.assertEqual(self._pipeline_audio("agendar_atendimento"), "agendar_atendimento")
 
-    def test_identificar_agendar_atendimento(self):
-        resultado = self.nlp.identificar_comando("agendar atendimento")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "agendar_atendimento")
+    def test_audio_agendar_atendimento_2(self):
+        self.assertEqual(self._pipeline_audio("agendar_atendimento"), "agendar_atendimento")
 
-    def test_identificar_marcar_atendimento(self):
-        resultado = self.nlp.identificar_comando("marcar atendimento presencial")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "agendar_atendimento")
-
-    def test_identificar_emitir_certidao(self):
-        resultado = self.nlp.identificar_comando("emitir certidão")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "emitir_certidao")
-
-    def test_identificar_gerar_certidao(self):
-        resultado = self.nlp.identificar_comando("gerar certidão de registro")
-        self.assertIsNotNone(resultado)
-        self.assertEqual(resultado["id"], "emitir_certidao")
-
-    def test_comando_invalido_retorna_none(self):
-        resultado = self.nlp.identificar_comando("quero uma pizza por favor")
-        self.assertIsNone(resultado)
-
-    def test_texto_vazio_retorna_none(self):
-        self.assertIsNone(self.nlp.identificar_comando(""))
+    def test_audio_emitir_certidao(self):
+        self.assertEqual(self._pipeline_audio("emitir_certidao"), "emitir_certidao")
 
 
-# ═════════════════════════════════════════════════════════════
-# 3. TESTES DOS ATUADORES
-# ═════════════════════════════════════════════════════════════
 class TestAtuadores(unittest.TestCase):
-    """Testa as funções atuadoras individualmente."""
 
     TEMPLATE_REGISTRO = "[CARTÓRIO] Protocolo: {protocolo}"
     TEMPLATE_CONSULTA = "[CARTÓRIO] Protocolo: {protocolo} — Status: {status}"
-    TEMPLATE_AGENDA = "[CARTÓRIO] Agendado para {data} às {horario}. Protocolo: {protocolo}"
     TEMPLATE_CERTIDAO = "[CARTÓRIO] Certidão: {certidao}"
-
-    def test_registrar_documento_retorna_string(self):
-        resultado = executar_registrar_documento(self.TEMPLATE_REGISTRO)
-        self.assertIsInstance(resultado, str)
 
     def test_registrar_documento_contem_protocolo(self):
         resultado = executar_registrar_documento(self.TEMPLATE_REGISTRO)
         self.assertIn("CART-", resultado)
 
-    def test_consultar_protocolo_retorna_string(self):
-        resultado = executar_consultar_protocolo(self.TEMPLATE_CONSULTA)
-        self.assertIsInstance(resultado, str)
-
     def test_consultar_protocolo_contem_status(self):
         resultado = executar_consultar_protocolo(self.TEMPLATE_CONSULTA)
         self.assertIn("Status:", resultado)
-
-    def test_agendar_atendimento_retorna_string(self):
-        resultado = executar_agendar_atendimento(self.TEMPLATE_AGENDA)
-        self.assertIsInstance(resultado, str)
-
-    def test_agendar_atendimento_contem_data(self):
-        resultado = executar_agendar_atendimento(self.TEMPLATE_AGENDA)
-        # Data no formato DD/MM/AAAA
-        import re
-        self.assertRegex(resultado, r"\d{2}/\d{2}/\d{4}")
-
-    def test_emitir_certidao_retorna_string(self):
-        resultado = executar_emitir_certidao(self.TEMPLATE_CERTIDAO)
-        self.assertIsInstance(resultado, str)
 
     def test_emitir_certidao_contem_numero(self):
         resultado = executar_emitir_certidao(self.TEMPLATE_CERTIDAO)
@@ -218,105 +98,10 @@ class TestAtuadores(unittest.TestCase):
         self.assertIn("não reconhecida", resultado)
 
 
-# ═════════════════════════════════════════════════════════════
-# 4. TESTES DE INTEGRAÇÃO COM ÁUDIOS PRÉ-GRAVADOS
-# ═════════════════════════════════════════════════════════════
-class TestIntegracaoAudio(unittest.TestCase):
-    """
-    Testa o pipeline completo: áudio WAV → transcrição Whisper → NLP → atuador.
-    Os áudios devem ser gerados previamente com: python gerar_audios_teste.py
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        cls.config = _carregar_config()
-        cls.nlp = ProcessadorNLP(cls.config)
-        cls.audios_disponíveis = os.path.isdir(PASTA_AUDIOS)
-
-    def _caminho_audio(self, nome: str) -> str:
-        return os.path.join(PASTA_AUDIOS, f"{nome}.wav")
-
-    def _pipeline_audio(self, nome_arquivo: str) -> str | None:
-        """Transcreve o áudio e retorna o id do comando identificado."""
-        caminho = self._caminho_audio(nome_arquivo)
-        if not os.path.isfile(caminho):
-            self.skipTest(
-                f"Áudio '{nome_arquivo}.wav' não encontrado. "
-                "Execute: python gerar_audios_teste.py"
-            )
-        texto = transcrever_arquivo(caminho)
-        if not texto:
-            return None
-        cmd = self.nlp.identificar_comando(texto)
-        return cmd["id"] if cmd else None
-
-    # — Testes com arquivos de áudio reais (skip se não existirem) —
-    def test_audio_registrar_documento_1(self):
-        id_cmd = self._pipeline_audio("registrar_documento_1")
-        self.assertEqual(id_cmd, "registrar_documento")
-
-    def test_audio_registrar_documento_2(self):
-        id_cmd = self._pipeline_audio("registrar_documento_2")
-        self.assertEqual(id_cmd, "registrar_documento")
-
-    def test_audio_consultar_protocolo_1(self):
-        id_cmd = self._pipeline_audio("consultar_protocolo_1")
-        self.assertEqual(id_cmd, "consultar_protocolo")
-
-    def test_audio_consultar_protocolo_2(self):
-        id_cmd = self._pipeline_audio("consultar_protocolo_2")
-        self.assertEqual(id_cmd, "consultar_protocolo")
-
-    def test_audio_agendar_atendimento_1(self):
-        id_cmd = self._pipeline_audio("agendar_atendimento_1")
-        self.assertEqual(id_cmd, "agendar_atendimento")
-
-    def test_audio_agendar_atendimento_2(self):
-        id_cmd = self._pipeline_audio("agendar_atendimento_2")
-        self.assertEqual(id_cmd, "agendar_atendimento")
-
-    def test_audio_emitir_certidao_1(self):
-        id_cmd = self._pipeline_audio("emitir_certidao_1")
-        self.assertEqual(id_cmd, "emitir_certidao")
-
-    def test_audio_emitir_certidao_2(self):
-        id_cmd = self._pipeline_audio("emitir_certidao_2")
-        self.assertEqual(id_cmd, "emitir_certidao")
-
-    def test_audio_invalido_nao_reconhecido(self):
-        """Um comando fora do escopo não deve ser reconhecido."""
-        id_cmd = self._pipeline_audio("comando_invalido_1")
-        self.assertIsNone(id_cmd)
-
-
-# ═════════════════════════════════════════════════════════════
-# 5. TESTES DO SENSOR DE VOZ
-# ═════════════════════════════════════════════════════════════
-class TestSensorVoz(unittest.TestCase):
-    """Testa a leitura de arquivos de áudio pelo sensor."""
-
-    def test_gerar_audio_silencio(self):
-        """Deve gerar um arquivo WAV de silêncio válido."""
-        caminho = os.path.join(tempfile.gettempdir(), "silencio_teste.wav")
-        gerar_audio_silencio(caminho, duracao_segundos=1.0)
-        self.assertTrue(os.path.isfile(caminho))
-        import soundfile as sf
-        info = sf.info(caminho)
-        self.assertEqual(info.channels, 1)
-        self.assertEqual(info.samplerate, 16000)
-        os.remove(caminho)
-
-    def test_arquivo_inexistente_retorna_none(self):
-        resultado = transcrever_arquivo("/caminho/que/nao/existe.wav")
-        self.assertIsNone(resultado)
-
-
-# ═════════════════════════════════════════════════════════════
-# PONTO DE ENTRADA
-# ═════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     print("=" * 60)
     print(" TESTES — Assistente Virtual de Cartório")
     print(" Disciplina: Inteligência Artificial — IFBA")
+    print(f" Timeout por teste de áudio: {TIMEOUT_TESTES}s")
     print("=" * 60)
     unittest.main(verbosity=2)

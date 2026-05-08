@@ -1,13 +1,3 @@
-"""
-gerar_audios_teste.py
-Script para geração dos áudios de teste usando o modelo TTS do Hugging Face
-(facebook/mms-tts-por) — Text-to-Speech em português, sem dependências externas.
-Gera arquivos WAV para cada comando do assistente, usados nos testes unitários.
-
-Uso:
-  python gerar_audios_teste.py
-"""
-
 import os
 import sys
 
@@ -20,7 +10,6 @@ from transformers import VitsModel, AutoTokenizer
 PASTA_AUDIOS = "audios_teste"
 MODEL_TTS = "facebook/mms-tts-por"
 
-# Frases de teste para cada comando (pelo menos 2 variações por comando)
 AUDIOS_TESTE = {
     "registrar_documento_1": "registrar documento",
     "registrar_documento_2": "quero registrar uma escritura",
@@ -40,7 +29,6 @@ AUDIOS_TESTE = {
 
 
 def gerar_audios():
-    """Gera todos os arquivos de áudio para os testes usando TTS local."""
     print(f"[GERADOR] Carregando modelo TTS: {MODEL_TTS}")
     print("[GERADOR] Primeira execução pode demorar (download do modelo ~500 MB).\n")
 
@@ -76,10 +64,8 @@ def gerar_audios():
             with torch.no_grad():
                 saida = model(**inputs)
 
-            # waveform: tensor de shape (1, n_amostras)
-            waveform = saida.waveform.squeeze(0).numpy()  # (n_amostras,)
+            waveform = saida.waveform.squeeze(0).numpy()
 
-            # Reamostrar para 16 kHz se o modelo usar taxa diferente
             if taxa_amostragem != 16000:
                 tensor_w = torch.tensor(waveform).unsqueeze(0)
                 resampler = torchaudio.transforms.Resample(

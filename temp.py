@@ -1,0 +1,2 @@
+TIMEOUT_TESTES = 8
+

@@ -1,19 +1,3 @@
-"""
-assistente_cartorio.py
-Script principal do Assistente Virtual de Cartório.
-
-Funcionamento:
-  - Carrega as configurações do arquivo comandos.json
-  - Inicia o loop de escuta de comandos de voz (microfone)
-  - Transcreve o áudio usando Whisper (sem SpeechRecognition)
-  - Identifica o comando via NLP e executa o atuador correspondente
-
-Uso:
-  python assistente_cartorio.py
-  python assistente_cartorio.py --modo texto     (para testes sem microfone)
-  python assistente_cartorio.py --modo arquivo --audio caminho.wav
-"""
-
 import json
 import sys
 import os
@@ -26,7 +10,6 @@ from sensor_voz import capturar_microfone, transcrever_arquivo
 
 
 def carregar_configuracao(caminho: str = "comandos.json") -> dict:
-    """Carrega o arquivo de configuração JSON."""
     if not os.path.isfile(caminho):
         print(f"[ERRO] Arquivo de configuração não encontrado: {caminho}")
         sys.exit(1)
@@ -37,7 +20,6 @@ def carregar_configuracao(caminho: str = "comandos.json") -> dict:
 
 
 def processar_comando(texto: str, processador: ProcessadorNLP, config: dict) -> None:
-    """Identifica e executa um comando a partir do texto transcrito."""
     msgs = config.get("mensagens_sistema", {})
 
     if not texto or not texto.strip():
@@ -61,7 +43,6 @@ def processar_comando(texto: str, processador: ProcessadorNLP, config: dict) -> 
 
 
 def modo_microfone(config: dict, processador: ProcessadorNLP) -> None:
-    """Loop principal de escuta via microfone."""
     msgs = config.get("mensagens_sistema", {})
     duracao = config.get("assistente", {}).get("duracao_gravacao_segundos", 5)
 
@@ -86,7 +67,6 @@ def modo_microfone(config: dict, processador: ProcessadorNLP) -> None:
 
 
 def modo_texto(config: dict, processador: ProcessadorNLP) -> None:
-    """Modo de texto para demonstração e testes sem microfone."""
     msgs = config.get("mensagens_sistema", {})
 
     print("\n" + msgs.get("boas_vindas", "Bem-vindo!"))
@@ -109,7 +89,6 @@ def modo_texto(config: dict, processador: ProcessadorNLP) -> None:
 
 
 def modo_arquivo(caminho_audio: str, config: dict, processador: ProcessadorNLP) -> None:
-    """Processa um único arquivo de áudio WAV."""
     print(f"\n[ARQUIVO] Transcrevendo: {caminho_audio}")
     texto = transcrever_arquivo(caminho_audio)
     processar_comando(texto or "", processador, config)
