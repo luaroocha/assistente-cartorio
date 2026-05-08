@@ -76,7 +76,7 @@
         "gerar documento"
       ],
       "acao": "EMITIR_CERTIDAO",
-      "resposta_sucesso": "[CARTÓRIO] Certidão emitida com sucesso! Número da certidão: {certidao}. Válida por 90 dias a contar de hoje.",
+      "resposta_sucesso": "[CARTÓRIO] Certidão emitida com sucesso! Número da certidão: {certidao}. Válida por 30 dias a contar de hoje.",
       "resposta_erro": "[CARTÓRIO] Não foi possível emitir a certidão. Verifique se o registro existe."
     }
   ],
@@ -88,3 +88,4 @@
     "encerrando": "Encerrando o Assistente Virtual do Cartório. Até logo!"
   }
 }
+

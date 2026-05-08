@@ -61,6 +61,6 @@ python -m unittest test_assistente_cartorio.py -v
 - `sensor_voz.py` — captura o microfone e transcreve com Whisper
 - `processador_nlp.py` — identifica o comando pelo texto
 - `atuadores.py` — executa as ações
-- `comandos.json` — configuração dos comandos
+- `config.json` — configuração dos comandos
 - `test_assistente_cartorio.py` — testes unitários
 - `temp.py` — configuração de tempo dos testes

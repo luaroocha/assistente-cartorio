@@ -17,7 +17,7 @@ from temp import TIMEOUT_TESTES
 
 
 PASTA_AUDIOS = "audios"
-CAMINHO_CONFIG = "comandos.json"
+CAMINHO_CONFIG = "config.json"
 
 
 def _carregar_config() -> dict:
