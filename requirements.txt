@@ -1,17 +1,6 @@
-# requirements.txt — Assistente Virtual de Cartório
-
-# Reconhecimento de fala (Whisper) e geração de áudio (MMS-TTS) via Hugging Face
 transformers
-
-# Processamento de áudio (PyTorch)
 torch
 torchaudio
-
-# Leitura e escrita de arquivos de áudio
 soundfile
-
-# Captura de áudio pelo microfone
 sounddevice
-
-# Processamento de linguagem natural
 nltk

@@ -3,7 +3,7 @@
     "nome": "Assistente Virtual de Cartório",
     "versao": "1.0",
     "idioma": "pt-BR",
-    "modelo_transcricao": "openai/whisper-base",
+    "modelo_transcricao": "jonatasgrosman/wav2vec2-large-xlsr-53-portuguese",
     "limiar_similaridade": 0.45
   },
   "comandos": [

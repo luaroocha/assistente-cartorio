@@ -1,30 +1,29 @@
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torchaudio
 import sounddevice as sd
 import soundfile as sf
-from transformers import pipeline
+from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
 
 
-MODEL_ID = "openai/whisper-base"
-_pipe = None
+MODEL_ID = "jonatasgrosman/wav2vec2-large-xlsr-53-portuguese"
+_processador: Optional[Wav2Vec2Processor] = None
+_modelo: Optional[Wav2Vec2ForCTC] = None
+_dispositivo: Optional[str] = None
 
 
-def _carregar_modelo() -> pipeline:
-    global _pipe
-    if _pipe is None:
+def _carregar_modelo() -> Tuple[Wav2Vec2Processor, Wav2Vec2ForCTC, str]:
+    global _processador, _modelo, _dispositivo
+    if _processador is None or _modelo is None:
         print(f"[SENSOR] Carregando modelo de transcrição: {MODEL_ID}")
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        _pipe = pipeline(
-            task="automatic-speech-recognition",
-            model=MODEL_ID,
-            device=device,
-            generate_kwargs={"language": "portuguese"}
-        )
-        print(f"[SENSOR] Modelo carregado (dispositivo: {device.upper()})")
-    return _pipe
+        _dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
+        _processador = Wav2Vec2Processor.from_pretrained(MODEL_ID)
+        _modelo = Wav2Vec2ForCTC.from_pretrained(MODEL_ID).to(_dispositivo)
+        _modelo.eval()
+        print(f"[SENSOR] Modelo carregado (dispositivo: {_dispositivo.upper()})")
+    return _processador, _modelo, _dispositivo
 
 
 def transcrever_arquivo(caminho_audio: str) -> Optional[str]:
@@ -43,9 +42,14 @@ def transcrever_arquivo(caminho_audio: str) -> Optional[str]:
 
         audio_np = waveform.mean(dim=0).numpy()
 
-        pipe = _carregar_modelo()
-        resultado = pipe({"array": audio_np, "sampling_rate": 16000})
-        texto = resultado.get("text", "").strip()
+        processador, modelo, dispositivo = _carregar_modelo()
+        inputs = processador(
+            audio_np, sampling_rate=16000, return_tensors="pt", padding=True
+        ).to(dispositivo)
+        with torch.no_grad():
+            logits = modelo(**inputs).logits
+        ids_previstos = torch.argmax(logits, dim=-1)
+        texto = processador.batch_decode(ids_previstos)[0].strip()
         print(f"[SENSOR] Transcrição: \"{texto}\"")
         return texto
     except Exception as e:
@@ -69,9 +73,14 @@ def capturar_microfone(duracao_segundos: int = 5,
 
         audio_np = gravacao.flatten()
 
-        pipe = _carregar_modelo()
-        resultado = pipe({"array": audio_np, "sampling_rate": taxa_amostragem})
-        texto = resultado.get("text", "").strip()
+        processador, modelo, dispositivo = _carregar_modelo()
+        inputs = processador(
+            audio_np, sampling_rate=taxa_amostragem, return_tensors="pt", padding=True
+        ).to(dispositivo)
+        with torch.no_grad():
+            logits = modelo(**inputs).logits
+        ids_previstos = torch.argmax(logits, dim=-1)
+        texto = processador.batch_decode(ids_previstos)[0].strip()
         print(f"[SENSOR] Transcrição: \"{texto}\"")
         return texto
     except Exception as e:
